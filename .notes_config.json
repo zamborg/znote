@@ -1,0 +1,10 @@
+{
+  "embedding_provider": {
+    "type": "openai",
+    "model": "text-embedding-3-small"
+  },
+  "tagger": {
+    "type": "openai",
+    "model": "gpt-5-mini"
+  }
+}
