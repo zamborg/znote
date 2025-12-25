@@ -1,5 +1,5 @@
 [project]
-name = "znote"
+name = "znotes"
 version = "0.1.0"
 description = "A multimodal notes management system with semantic search and automatic linking"
 requires-python = ">=3.13"
