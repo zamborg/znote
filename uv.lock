@@ -137,38 +137,6 @@ wheels = [
 ]
 
 [[package]]
-name = "notes"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "numpy" },
-    { name = "pydantic" },
-    { name = "pytest" },
-    { name = "requests" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=22.0.0" },
-    { name = "numpy", specifier = ">=2.0.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "ruff", specifier = ">=0.14.10" },
-    { name = "ty", specifier = ">=0.0.7" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "numpy"
 version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -451,3 +419,35 @@ sdist = { url = "https://files.pythonhosted.org/packages/1e/24/a2a2ed9addd907787
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/b9/4095b668ea3678bf6a0af005527f39de12fb026516fb3df17495a733b7f8/urllib3-2.6.2-py3-none-any.whl", hash = "sha256:ec21cddfe7724fc7cb4ba4bea7aa8e2ef36f607a4bab81aa6ce42a13dc3f03dd", size = 131182, upload-time = "2025-12-11T15:56:38.584Z" },
 ]
+
+[[package]]
+name = "znotes"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pytest" },
+    { name = "requests" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=22.0.0" },
+    { name = "numpy", specifier = ">=2.0.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "ruff", specifier = ">=0.14.10" },
+    { name = "ty", specifier = ">=0.0.7" },
+]
+provides-extras = ["dev"]
