@@ -27,6 +27,51 @@ Configure providers in `~/.notes_config.json` (example for OpenAI):
 }
 ```
 
+## Black Hole CLI (`bh`)
+
+A pared-down UX that turns the notes system into a “black hole” capture surface.
+
+```bash
+# Ingest raw text or a file (text is inlined; files are attached)
+bh add "stray idea about energy markets"
+bh add path/to/audio.m4a
+bh add path/to/audio.m4a --no-transcribe  # skip Whisper
+
+# Semantic search (default) or hybrid/keyword
+bh search "fusion breakthroughs"
+bh search "fusion breakthroughs" --mode hybrid --limit 5
+
+# Traverse or render notes
+bh browse --limit 10 --sort modified
+bh show <note-id>
+bh status
+bh link <note-id>               # refresh/show links
+bh open <note-id>               # open in $EDITOR
+bh yank                         # capture clipboard into a note
+
+# Proactive passes
+bh proactive todo --scope all   # build BH TODOs note (id: bh-todo)
+bh proactive brief              # brief only new notes since the last run
+bh digest                       # digest of recent notes
+
+# Watch a folder and ingest new files (one-shot or follow mode)
+bh create-bh /path/to/inbox --follow --interval 30
+bh create-bh /path/to/inbox     # one-shot scan
+# Ctrl+C stops follow mode
+
+# Retag notes via LLM
+bh retag --scope all
+```
+
+Proactive scopes:
+- `--scope new` (default): only notes modified after the last corresponding run (state saved in `.notes_db/bh_state.json`)
+- `--scope all`: rescan everything
+
+Outputs:
+- `bh proactive todo` → note `bh-todo` titled “BH TODOs” (LLM-extracted TODOs + inferred due dates via wbal/gpt-5-mini)
+- `bh proactive brief` → note `bh-brief` titled “BH Briefings” (LLM briefings grouped by tags/categories)
+- `bh digest` → note `bh-digest` titled “BH Digest” (LLM digest of scanned notes)
+
 ## Quick Start
 
 ```bash

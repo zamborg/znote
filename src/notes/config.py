@@ -19,6 +19,13 @@ DEFAULT_CONFIG = {
         "type": "openai",
         "model": "gpt-4o-mini",
     },
+    "transcriber": {
+        "type": "whisper",
+        "model": "whisper-1",
+    },
+    "llm": {
+        "model": "gpt-5-mini",
+    },
 }
 
 
