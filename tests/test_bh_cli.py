@@ -168,7 +168,7 @@ def test_bh_link(tmp_path):
     cli.close()
 
 
-def test_bh_lint_reports_missing_content(tmp_path, capsys):
+def test_bh_lint_reports_missing_content(tmp_path):
     cli = BlackHoleCLI(base_path=tmp_path)
     cli.tagger = None
     cli.search.semantic_search.provider = FakeEmbeddingProvider()
@@ -178,9 +178,8 @@ def test_bh_lint_reports_missing_content(tmp_path, capsys):
     # Remove content file to trigger lint issue
     cli.storage._content_path(note_id).unlink()
 
-    cli.lint()
-    captured = capsys.readouterr().out
-    assert "content.md missing" in captured
+    issues = cli.lint()
+    assert any("content.md missing" in issue for issue in issues)
     cli.close()
 
 

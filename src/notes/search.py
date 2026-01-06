@@ -107,6 +107,8 @@ class SemanticSearch:
         self.provider = provider
         self.embeddings_cache = {}  # note_id -> embedding vector
         self.note_ids = []
+        self.meta: dict = {}
+        self.dimension = getattr(provider, "dimension", 384) if provider else 384
 
         self._load_index()
 
@@ -116,13 +118,74 @@ class SemanticSearch:
             data = np.load(self.embeddings_path, allow_pickle=True).item()
             self.embeddings_cache = data.get("embeddings", {})
             self.note_ids = data.get("note_ids", [])
+            self.meta = data.get("meta", {}) or {}
 
     def _save_index(self):
         """Save embeddings and index to disk."""
         np.save(
             self.embeddings_path,
-            {"embeddings": self.embeddings_cache, "note_ids": self.note_ids},
+            {
+                "embeddings": self.embeddings_cache,
+                "note_ids": self.note_ids,
+                "meta": self.meta,
+            },
         )
+
+    def _expected_meta(self) -> dict:
+        provider_name = getattr(self.provider, "name", None) if self.provider else None
+        return {
+            "provider": provider_name or "local",
+            "dimension": int(self.dimension),
+        }
+
+    def _infer_stored_dimension(self) -> Optional[int]:
+        if isinstance(self.meta, dict) and self.meta.get("dimension"):
+            try:
+                return int(self.meta["dimension"])
+            except Exception:
+                pass
+        for vec in (self.embeddings_cache or {}).values():
+            try:
+                if vec is not None and getattr(vec, "shape", None):
+                    return int(vec.shape[0])
+            except Exception:
+                continue
+        return None
+
+    def ensure_compatible(self, storage: NotesStorage) -> bool:
+        """
+        Ensure the on-disk index is compatible with the configured provider.
+        Rebuilds the index when provider/dimension change to prevent shape mismatches.
+
+        Returns True if a rebuild was performed.
+        """
+        expected = self._expected_meta()
+        stored_dim = self._infer_stored_dimension()
+        stored_provider = (self.meta or {}).get("provider")
+
+        compatible = True
+        if stored_dim is not None and int(stored_dim) != int(expected["dimension"]):
+            compatible = False
+        if stored_provider and stored_provider != expected["provider"]:
+            compatible = False
+
+        if compatible:
+            # If metadata is missing or incomplete, backfill it.
+            if self.meta != expected:
+                self.meta = expected
+                self._save_index()
+            return False
+
+        # Rebuild
+        self.embeddings_cache = {}
+        self.note_ids = []
+        self.meta = expected
+        for note_id in storage.list_notes():
+            note = storage.load_note(note_id)
+            if note:
+                self._index_note_in_memory(note)
+        self._save_index()
+        return True
 
     def compute_embedding(self, text: str) -> np.ndarray:
         """
@@ -132,17 +195,25 @@ class SemanticSearch:
         """
         if self.provider:
             try:
-                return self.provider.embed_text(text)
+                vecs = self.provider.embed_texts([text])
+                if vecs:
+                    vec = vecs[0]
+                    try:
+                        if getattr(vec, "shape", None):
+                            self.dimension = int(vec.shape[0])
+                    except Exception:
+                        pass
+                    return vec
             except Exception:
                 # Fall back to local embedding on provider failure
                 pass
 
         # Simple bag-of-words embedding (placeholder)
         words = text.lower().split()
-        embedding = np.zeros(384)  # Standard embedding size
+        embedding = np.zeros(self.dimension)  # Standard embedding size
 
-        for i, word in enumerate(words[:384]):
-            embedding[i % 384] += hash(word) % 100 / 100.0
+        for i, word in enumerate(words[: self.dimension]):
+            embedding[i % self.dimension] += hash(word) % 100 / 100.0
 
         norm = np.linalg.norm(embedding)
         if norm > 0:
@@ -150,15 +221,17 @@ class SemanticSearch:
 
         return embedding
 
-    def index_note(self, note: Note):
-        """Index a note for semantic search."""
+    def _index_note_in_memory(self, note: Note):
         text = f"{note.title}\n\n{note.content}\n\n{' '.join(note.tags)}"
         embedding = self.compute_embedding(text)
-
         self.embeddings_cache[note.id] = embedding
         if note.id not in self.note_ids:
             self.note_ids.append(note.id)
 
+    def index_note(self, note: Note):
+        """Index a note for semantic search."""
+        self.meta = self._expected_meta()
+        self._index_note_in_memory(note)
         self._save_index()
 
     def search(
@@ -178,6 +251,12 @@ class SemanticSearch:
         for note_id in self.note_ids:
             if note_id in self.embeddings_cache:
                 embedding = self.embeddings_cache[note_id]
+                if (
+                    embedding is None
+                    or not getattr(embedding, "shape", None)
+                    or embedding.shape != query_embedding.shape
+                ):
+                    continue
                 similarity = np.dot(query_embedding, embedding)
                 if similarity >= min_score:
                     similarities.append((note_id, float(similarity)))
@@ -209,6 +288,7 @@ class NotesSearch:
         self.semantic_search = SemanticSearch(
             storage.db_dir / "embeddings.npy", storage.index_dir, provider=embedding_provider
         )
+        self.semantic_search.ensure_compatible(storage)
 
     def index_note(self, note: Note):
         """Index a note for both keyword and semantic search."""

@@ -60,7 +60,11 @@ class NotesGraph:
 
         semantic_sim = 0.0
         if emb1 is not None and emb2 is not None:
-            semantic_sim = float(np.dot(emb1, emb2))
+            try:
+                if getattr(emb1, "shape", None) == getattr(emb2, "shape", None):
+                    semantic_sim = float(np.dot(emb1, emb2))
+            except Exception:
+                semantic_sim = 0.0
 
         # Keyword overlap (Jaccard similarity)
         words1 = set(note1.content.lower().split()) | set(note1.title.lower().split())

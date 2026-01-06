@@ -19,11 +19,13 @@ UV_CACHE_DIR=/tmp/uv-cache uv pip install -e .
 pip install -e .
 ```
 
-Configure providers in `~/.notes_config.json` (example for OpenAI):
+Configure providers in `~/.notes/.notes_config.json` (default base path is `~/.notes`):
 ```json
 {
   "embedding_provider": {"type": "openai", "model": "text-embedding-3-small"},
-  "tagger": {"type": "openai", "model": "gpt-5-mini"}
+  "tagger": {"type": "openai", "model": "gpt-5-mini"},
+  "transcriber": {"type": "whisper", "model": "whisper-1"},
+  "llm": {"model": "gpt-5-mini"}
 }
 ```
 
@@ -71,6 +73,14 @@ Outputs:
 - `bh proactive todo` → note `bh-todo` titled “BH TODOs” (LLM-extracted TODOs + inferred due dates via wbal/gpt-5-mini)
 - `bh proactive brief` → note `bh-brief` titled “BH Briefings” (LLM briefings grouped by tags/categories)
 - `bh digest` → note `bh-digest` titled “BH Digest” (LLM digest of scanned notes)
+
+BH state and indexes live under `~/.notes/.notes_db/` by default:
+- `bh_state.json`: last runs (`todo/brief/digest/retag`) + watched folder timestamps
+- `search.db`: keyword search (SQLite FTS5)
+- `embeddings.npy`: semantic index (stores provider/dimension metadata; auto-rebuilds on mismatch)
+- `graph.json`: similarity link graph
+
+More details: `docs/black-hole.md`.
 
 ## Quick Start
 
