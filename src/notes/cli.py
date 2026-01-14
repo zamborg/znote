@@ -16,6 +16,8 @@ from .graph import NotesGraph
 from .config import load_config
 from .providers_openai import OpenAIEmbeddingProvider, OpenAITagger
 from .migrations.reintegrate import reintegrate
+from .streams import normalize_stream
+from .tags import normalize_tags
 
 
 class NotesCLI:
@@ -54,10 +56,11 @@ class NotesCLI:
         tags: list = None,
         attachments: list = None,
         auto_tags: bool = False,
+        stream: Optional[str] = None,
     ):
         """Create a new note."""
         # Merge user tags with auto-tag suggestions if enabled
-        final_tags = tags or []
+        final_tags = normalize_tags(tags or [])
         if auto_tags and self.tagger:
             try:
                 suggested = self.tagger.suggest_tags(title, content)
@@ -71,6 +74,7 @@ class NotesCLI:
             title=title,
             content=content,
             tags=final_tags,
+            stream=normalize_stream(stream),
         )
 
         # Save note
@@ -100,13 +104,7 @@ class NotesCLI:
     @staticmethod
     def _merge_tags(existing, suggested):
         """Merge and deduplicate while preserving order."""
-        seen = set()
-        merged = []
-        for tag in (existing or []) + (suggested or []):
-            if tag and tag not in seen:
-                merged.append(tag)
-                seen.add(tag)
-        return merged
+        return normalize_tags((existing or []) + (suggested or []))
 
     def get_note(self, note_id: str):
         """Display a note."""

@@ -6,12 +6,13 @@ Designed to be lightweight and swappable via the adapter interfaces.
 from __future__ import annotations
 
 import os
-from typing import List, Optional
+from typing import Any, Callable, List, Optional
 
 import numpy as np
 import requests
 
 from .adapters import EmbeddingProvider, Tagger
+from .costs import estimate_cost_usd
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
@@ -22,12 +23,14 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         model: str = "text-embedding-3-small",
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
+        event_recorder: Optional[Callable[[dict[str, Any]], None]] = None,
     ):
         self.name = f"openai:{model}"
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.api_base = api_base or os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
         self.dimension = 1536  # text-embedding-3-small output size
+        self.event_recorder = event_recorder
 
     def _headers(self) -> dict:
         if not self.api_key:
@@ -45,6 +48,23 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         resp = requests.post(f"{self.api_base}/embeddings", headers=self._headers(), json=payload)
         resp.raise_for_status()
         data = resp.json()
+
+        usage = data.get("usage") or None
+        cost_usd = estimate_cost_usd(operation="embeddings", model=self.model, usage=usage) if usage else None
+        if self.event_recorder:
+            try:
+                self.event_recorder(
+                    {
+                        "provider": "openai",
+                        "operation": "embeddings",
+                        "model": self.model,
+                        "request_id": resp.headers.get("x-request-id"),
+                        "usage": usage,
+                        "cost_usd": cost_usd,
+                    }
+                )
+            except Exception:
+                pass
 
         embeddings = []
         for item in data.get("data", []):
@@ -65,11 +85,13 @@ class OpenAITagger(Tagger):
         model: str = "gpt-4o-mini",
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
+        event_recorder: Optional[Callable[[dict[str, Any]], None]] = None,
     ):
         self.name = f"openai:{model}"
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.api_base = api_base or os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
+        self.event_recorder = event_recorder
 
     def _headers(self) -> dict:
         if not self.api_key:
@@ -83,7 +105,7 @@ class OpenAITagger(Tagger):
         prompt = (
             "You are a concise tag generator for a research notes system. "
             "Return a comma-separated list of lowercase tags (1-3 words each), "
-            "no explanations. Max tags: {max_tags}.\n\n"
+            f"no explanations. Max tags: {max_tags}.\n\n"
             f"Title: {title}\nContent:\n{content[:2000]}"
         )
 
@@ -100,6 +122,24 @@ class OpenAITagger(Tagger):
         resp = requests.post(f"{self.api_base}/chat/completions", headers=self._headers(), json=payload)
         resp.raise_for_status()
         data = resp.json()
+
+        usage = data.get("usage") or None
+        cost_usd = estimate_cost_usd(operation="chat_completions", model=self.model, usage=usage) if usage else None
+        if self.event_recorder:
+            try:
+                self.event_recorder(
+                    {
+                        "provider": "openai",
+                        "operation": "chat_completions",
+                        "model": self.model,
+                        "request_id": resp.headers.get("x-request-id"),
+                        "usage": usage,
+                        "cost_usd": cost_usd,
+                    }
+                )
+            except Exception:
+                pass
+
         content_text = data["choices"][0]["message"]["content"]
         tags = [t.strip().lower() for t in content_text.split(",")]
         tags = [t for t in tags if t]

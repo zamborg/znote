@@ -25,15 +25,23 @@ class Attachment(BaseModel):
     media_type: MediaType
     size_bytes: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sha256: Optional[str] = None
+    original_path: Optional[str] = None
+    source_id: Optional[str] = None
 
 
 class Note(BaseModel):
     """Core note datamodel."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    kind: str = "note"  # "note" | "todo"
     title: str
     content: str = ""
     tags: List[str] = Field(default_factory=list)
+    stream: str = "inbox"
+    due_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    archived_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     modified_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     attachments: List[Attachment] = Field(default_factory=list)

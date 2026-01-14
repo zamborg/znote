@@ -1,5 +1,6 @@
 from notes.bh_cli import BlackHoleCLI
 import numpy as np
+import sqlite3
 
 
 class FakeEmbeddingProvider:
@@ -47,21 +48,17 @@ def test_bh_todo_scope_all(tmp_path):
     cli = BlackHoleCLI(base_path=tmp_path)
     cli.tagger = None
     cli.search.semantic_search.provider = FakeEmbeddingProvider()
-    cli.llm = FakeLLM(
-        [
-            "- [Task 1](note-1): ship the feature (due 2024-12-01)\n"
-            "- [Task 2](note-2): follow up tomorrow"
-        ]
-    )
 
-    cli.add("TODO: ship the feature by 2024-12-01", title="Task 1")
-    cli.add("Random content\n- [ ] TODO: follow up tomorrow", title="Task 2")
+    todo_1 = cli.create_todo("ship the feature", title="Task 1", due="2024-12-01")
+    todo_2 = cli.create_todo("follow up tomorrow", title="Task 2")
 
     cli.proactive_todo(scope="all")
     todo_note = cli.storage.load_note(BlackHoleCLI.TODO_NOTE_ID)
 
     assert todo_note is not None
     assert "Task 1" in todo_note.content
+    assert todo_1 in todo_note.content
+    assert todo_2 in todo_note.content
     assert "2024-12-01" in todo_note.content
     cli.close()
 
@@ -104,6 +101,63 @@ def test_bh_audio_transcription(tmp_path):
     note_id = cli.add(str(audio_file))
     note = cli.storage.load_note(note_id)
     assert "transcribed text" in note.content
+    cli.close()
+
+
+def test_bh_records_source_provenance(tmp_path):
+    doc = tmp_path / "doc.txt"
+    doc.write_text("hello world", encoding="utf-8")
+
+    cli = BlackHoleCLI(base_path=tmp_path)
+    cli.tagger = None
+    cli.search.semantic_search.provider = FakeEmbeddingProvider()
+    cli.llm = FakeLLM([])
+
+    note_id = cli.add(str(doc))
+    note = cli.storage.load_note(note_id)
+    assert note is not None
+    assert note.attachments
+    assert note.attachments[0].sha256
+    assert note.attachments[0].source_id
+
+    db_path = tmp_path / ".notes_db" / "bh.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        sources = conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
+        refs = conn.execute("SELECT COUNT(*) FROM source_refs WHERE item_id = ?", (note_id,)).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert sources >= 1
+    assert refs >= 1
+    cli.close()
+
+
+def test_bh_todo_lifecycle(tmp_path):
+    cli = BlackHoleCLI(base_path=tmp_path)
+    cli.tagger = None
+    cli.search.semantic_search.provider = FakeEmbeddingProvider()
+    cli.llm = FakeLLM([])
+
+    todo_id = cli.create_todo("Ship v1", due="2026-01-14", stream="Work/BH")
+    todo = cli.storage.load_note(todo_id)
+    assert todo is not None
+    assert todo.kind == "todo"
+    assert todo.due_at is not None
+    assert todo.stream == "work/bh"
+    assert todo.completed_at is None
+    assert todo.archived_at is None
+
+    assert cli.mark_todo_done(todo_id) is True
+    done = cli.storage.load_note(todo_id)
+    assert done is not None
+    assert done.completed_at is not None
+    assert done.archived_at is None
+
+    assert cli.archive_item(todo_id) is True
+    archived = cli.storage.load_note(todo_id)
+    assert archived is not None
+    assert archived.archived_at is not None
     cli.close()
 
 

@@ -3,6 +3,7 @@ Storage layer for the notes system.
 Handles file system operations and persistence.
 """
 
+import hashlib
 import json
 import shutil
 from datetime import datetime, timezone
@@ -85,6 +86,9 @@ class NotesStorage:
 
         note.created_at = _aware(note.created_at)
         note.modified_at = _aware(note.modified_at)
+        note.due_at = _aware(note.due_at)
+        note.completed_at = _aware(note.completed_at)
+        note.archived_at = _aware(note.archived_at)
         for att in note.attachments:
             att.created_at = _aware(att.created_at)
 
@@ -133,12 +137,16 @@ class NotesStorage:
         dest_path = attachments_dir / file_path.name
         shutil.copy2(file_path, dest_path)
 
+        sha256 = self._sha256_file(dest_path)
+
         # Create attachment record
         attachment = Attachment(
             filename=file_path.name,
             media_type=media_type,
             size_bytes=dest_path.stat().st_size,
             created_at=datetime.now(timezone.utc),
+            sha256=sha256,
+            original_path=str(file_path),
         )
 
         # Update note
@@ -146,6 +154,14 @@ class NotesStorage:
         self.save_note(note)
 
         return attachment
+
+    @staticmethod
+    def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+        hasher = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(chunk_size), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
 
     def _infer_media_type(self, file_path: Path) -> MediaType:
         """Infer media type from file extension."""
